@@ -1,0 +1,593 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// MODULE 8: USER MANAGEMENT & RBAC
+// ============================================================
+
+model User {
+  id         Int      @id @default(autoincrement())
+  username   String   @unique
+  full_name  String
+  email      String   @unique
+  phone      String?
+  password   String
+  department String?
+  position   String?
+  status     String   @default("ACTIVE")
+  flag       Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user_roles UserRole[]
+
+  @@map("users")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  flag        Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  user_roles       UserRole[]
+  role_permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  user_id     Int
+  role_id     Int
+  assigned_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, role_id])
+  @@map("user_roles")
+}
+
+model Permission {
+  id          Int     @id @default(autoincrement())
+  module      String
+  action      String
+  description String?
+
+  role_permissions RolePermission[]
+
+  @@unique([module, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  role_id       Int
+  permission_id Int
+
+  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@id([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+// ============================================================
+// MODULE 1: INVENTORY MANAGEMENT
+// ============================================================
+
+model ProductCategory {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  flag       Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  products Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id                     Int     @id @default(autoincrement())
+  product_code           String  @unique
+  product_name           String
+  description            String?
+  default_selling_price  Decimal @default(0)
+  default_purchase_price Decimal @default(0)
+  uom                    String
+  image_url              String?
+  flag                   Int      @default(1)
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  category_id Int?
+  category    ProductCategory? @relation(fields: [category_id], references: [id])
+
+  stock_movements        StockMovement[]
+  warehouse_stocks       WarehouseStock[]
+  rfq_items              RFQItem[]
+  so_items               SOItem[]
+  do_items               DOItem[]
+  invoice_items          InvoiceItem[]
+  po_items               POItem[]
+  gr_items               GRItem[]
+  customer_product_codes CustomerProductCode[]
+
+  @@map("products")
+}
+
+model CustomerProductCode {
+  id                    Int      @id @default(autoincrement())
+  customer_id           Int
+  product_id            Int
+  customer_product_code String
+  notes                 String?
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([customer_id, product_id])
+  @@map("customer_product_codes")
+}
+
+model Warehouse {
+  id             Int      @id @default(autoincrement())
+  warehouse_code String   @unique
+  warehouse_name String
+  address        String?
+  contact_phone  String?
+  manager_name   String?
+  flag           Int      @default(1)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  warehouse_stocks WarehouseStock[]
+  stock_movements  StockMovement[]
+  rfq_items        RFQItem[]
+  so_items         SOItem[]
+  delivery_orders  DeliveryOrder[]
+  po_items         POItem[]
+  goods_receipts   GoodsReceipt[]
+
+  @@map("warehouses")
+}
+
+model WarehouseStock {
+  id                  Int      @id @default(autoincrement())
+  product_id          Int
+  warehouse_id        Int
+  quantity            Decimal  @default(0)
+  low_stock_threshold Decimal  @default(0)
+  updated_at          DateTime @updatedAt
+
+  product   Product   @relation(fields: [product_id], references: [id])
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [id])
+
+  @@unique([product_id, warehouse_id])
+  @@map("warehouse_stocks")
+}
+
+model StockMovement {
+  id               Int      @id @default(autoincrement())
+  product_id       Int
+  warehouse_id     Int
+  movement_type    String // IN | OUT | TRANSFER
+  quantity         Decimal
+  reference_type   String? // RFQ | SO | DO | PO | GR | ADJUST
+  reference_id     Int?
+  reference_number String?
+  unit_cost        Decimal?
+  notes            String?
+  created_by       Int?
+  created_at       DateTime @default(now())
+
+  product   Product   @relation(fields: [product_id], references: [id])
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [id])
+
+  @@map("stock_movements")
+}
+
+// ============================================================
+// MODULE 2: CONTACT MANAGEMENT
+// ============================================================
+
+model Customer {
+  id               Int      @id @default(autoincrement())
+  customer_code    String   @unique
+  customer_name    String
+  business_type    String?
+  industry         String?
+  npwp             String?
+  billing_address  String?
+  shipping_address String?
+  payment_terms    Int      @default(30)
+  credit_limit     Decimal  @default(0)
+  status           String   @default("ACTIVE")
+  flag             Int      @default(1)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  pics                   CustomerPIC[]
+  rfqs                   RFQ[]
+  sales_orders           SalesOrder[]
+  delivery_orders        DeliveryOrder[]
+  sales_invoices         SalesInvoice[]
+  ar_payments            ARPayment[]
+  customer_product_codes CustomerProductCode[]
+
+  @@map("customers")
+}
+
+model CustomerPIC {
+  id          Int      @id @default(autoincrement())
+  customer_id Int
+  pic_name    String
+  position    String?
+  phone       String?
+  email       String?
+  is_primary  Boolean  @default(false)
+  flag        Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  customer Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@map("customer_pics")
+}
+
+model Supplier {
+  id            Int      @id @default(autoincrement())
+  supplier_code String   @unique
+  supplier_name String
+  business_type String?
+  npwp          String?
+  address       String?
+  payment_terms Int      @default(30)
+  status        String   @default("ACTIVE")
+  flag          Int      @default(1)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  pics           SupplierPIC[]
+  purchase_orders PurchaseOrder[]
+  goods_receipts  GoodsReceipt[]
+
+  @@map("suppliers")
+}
+
+model SupplierPIC {
+  id          Int      @id @default(autoincrement())
+  supplier_id Int
+  pic_name    String
+  position    String?
+  phone       String?
+  email       String?
+  is_primary  Boolean  @default(false)
+  flag        Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplier_id], references: [id], onDelete: Cascade)
+
+  @@map("supplier_pics")
+}
+
+// ============================================================
+// MODULE 3: SALES MANAGEMENT
+// ============================================================
+
+model RFQ {
+  id          Int      @id @default(autoincrement())
+  rfq_number  String   @unique
+  rfq_date    DateTime @default(now())
+  customer_id Int
+  notes       String?
+  subtotal    Decimal  @default(0)
+  ppn_rate    Decimal  @default(11)
+  ppn_amount  Decimal  @default(0)
+  grand_total Decimal  @default(0)
+  // DRAFT | SENT | APPROVED | REJECTED | CLOSED
+  status      String   @default("DRAFT")
+  flag        Int      @default(1)
+  created_by  Int?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  customer     Customer            @relation(fields: [customer_id], references: [id])
+  items        RFQItem[]
+  sales_orders SalesOrder[]
+  attachments  DocumentAttachment[]
+
+  @@map("rfqs")
+}
+
+model RFQItem {
+  id           Int     @id @default(autoincrement())
+  rfq_id       Int
+  product_id   Int
+  warehouse_id Int?
+  qty          Decimal
+  unit_price   Decimal
+  subtotal     Decimal
+
+  rfq       RFQ       @relation(fields: [rfq_id], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [product_id], references: [id])
+  warehouse Warehouse? @relation(fields: [warehouse_id], references: [id])
+
+  @@map("rfq_items")
+}
+
+model SalesOrder {
+  id          Int      @id @default(autoincrement())
+  so_number   String   @unique
+  so_date     DateTime @default(now())
+  customer_id Int
+  rfq_id      Int?
+  notes       String?
+  subtotal    Decimal  @default(0)
+  ppn_rate    Decimal  @default(11)
+  ppn_amount  Decimal  @default(0)
+  grand_total Decimal  @default(0)
+  is_indent   Boolean  @default(false)
+  // DRAFT | CONFIRMED | PROCESSING | COMPLETED | CANCELLED
+  status      String   @default("DRAFT")
+  flag        Int      @default(1)
+  created_by  Int?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  customer        Customer           @relation(fields: [customer_id], references: [id])
+  rfq             RFQ?               @relation(fields: [rfq_id], references: [id])
+  items           SOItem[]
+  delivery_orders DeliveryOrder[]
+  attachments     DocumentAttachment[]
+
+  @@map("sales_orders")
+}
+
+model SOItem {
+  id           Int     @id @default(autoincrement())
+  so_id        Int
+  product_id   Int
+  warehouse_id Int?
+  qty          Decimal
+  unit_price   Decimal
+  subtotal     Decimal
+
+  so        SalesOrder @relation(fields: [so_id], references: [id], onDelete: Cascade)
+  product   Product    @relation(fields: [product_id], references: [id])
+  warehouse Warehouse? @relation(fields: [warehouse_id], references: [id])
+
+  @@map("so_items")
+}
+
+model DeliveryOrder {
+  id                  Int      @id @default(autoincrement())
+  do_number           String   @unique
+  do_date             DateTime @default(now())
+  so_id               Int
+  customer_id         Int
+  warehouse_id        Int?
+  delivery_address    String?
+  recipient_name      String?
+  recipient_phone     String?
+  vehicle_number      String?
+  driver_name         String?
+  surat_jalan_number  String?
+  notes               String?
+  // DRAFT | PROCESSING | SHIPPED | DELIVERED | CANCELLED
+  status              String   @default("DRAFT")
+  flag                Int      @default(1)
+  created_by          Int?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  so          SalesOrder          @relation(fields: [so_id], references: [id])
+  customer    Customer            @relation(fields: [customer_id], references: [id])
+  warehouse   Warehouse?          @relation(fields: [warehouse_id], references: [id])
+  items       DOItem[]
+  invoices    SalesInvoice[]
+  attachments DocumentAttachment[]
+
+  @@map("delivery_orders")
+}
+
+model DOItem {
+  id         Int     @id @default(autoincrement())
+  do_id      Int
+  product_id Int
+  qty        Decimal
+  unit_price Decimal
+  subtotal   Decimal
+
+  do      DeliveryOrder @relation(fields: [do_id], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [product_id], references: [id])
+
+  @@map("do_items")
+}
+
+model SalesInvoice {
+  id             Int       @id @default(autoincrement())
+  invoice_number String    @unique
+  invoice_date   DateTime  @default(now())
+  due_date       DateTime?
+  do_id          Int
+  customer_id    Int
+  subtotal       Decimal   @default(0)
+  ppn_rate       Decimal   @default(11)
+  ppn_amount     Decimal   @default(0)
+  grand_total    Decimal   @default(0)
+  notes          String?
+  // DRAFT | ISSUED | PARTIAL | PAID | OVERDUE
+  status         String    @default("DRAFT")
+  flag           Int       @default(1)
+  created_by     Int?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  do          DeliveryOrder       @relation(fields: [do_id], references: [id])
+  customer    Customer            @relation(fields: [customer_id], references: [id])
+  items       InvoiceItem[]
+  payments    ARPayment[]
+  attachments DocumentAttachment[]
+
+  @@map("sales_invoices")
+}
+
+model InvoiceItem {
+  id         Int     @id @default(autoincrement())
+  invoice_id Int
+  product_id Int
+  qty        Decimal
+  unit_price Decimal
+  subtotal   Decimal
+
+  invoice SalesInvoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [product_id], references: [id])
+
+  @@map("invoice_items")
+}
+
+model ARPayment {
+  id             Int      @id @default(autoincrement())
+  payment_number String   @unique
+  payment_date   DateTime @default(now())
+  invoice_id     Int
+  customer_id    Int
+  amount         Decimal
+  // TRANSFER | CASH | GIRO | CHECK
+  method         String   @default("TRANSFER")
+  notes          String?
+  status         String   @default("CONFIRMED")
+  flag           Int      @default(1)
+  created_by     Int?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  invoice  SalesInvoice @relation(fields: [invoice_id], references: [id])
+  customer Customer     @relation(fields: [customer_id], references: [id])
+
+  @@map("ar_payments")
+}
+
+// ============================================================
+// MODULE 4: PROCUREMENT MANAGEMENT
+// ============================================================
+
+model PurchaseOrder {
+  id          Int      @id @default(autoincrement())
+  po_number   String   @unique
+  po_date     DateTime @default(now())
+  supplier_id Int
+  notes       String?
+  subtotal    Decimal  @default(0)
+  ppn_rate    Decimal  @default(11)
+  ppn_amount  Decimal  @default(0)
+  grand_total Decimal  @default(0)
+  // DRAFT | PENDING_APPROVAL | APPROVED | SENT | RECEIVED | CLOSED
+  status      String   @default("DRAFT")
+  flag        Int      @default(1)
+  created_by  Int?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  supplier       Supplier            @relation(fields: [supplier_id], references: [id])
+  items          POItem[]
+  goods_receipts GoodsReceipt[]
+  attachments    DocumentAttachment[]
+
+  @@map("purchase_orders")
+}
+
+model POItem {
+  id           Int     @id @default(autoincrement())
+  po_id        Int
+  product_id   Int
+  warehouse_id Int?
+  qty          Decimal
+  unit_price   Decimal
+  subtotal     Decimal
+
+  po        PurchaseOrder @relation(fields: [po_id], references: [id], onDelete: Cascade)
+  product   Product       @relation(fields: [product_id], references: [id])
+  warehouse Warehouse?    @relation(fields: [warehouse_id], references: [id])
+
+  @@map("po_items")
+}
+
+model GoodsReceipt {
+  id             Int      @id @default(autoincrement())
+  receipt_number String   @unique
+  receipt_date   DateTime @default(now())
+  po_id          Int
+  supplier_id    Int
+  warehouse_id   Int
+  notes          String?
+  // DRAFT | CONFIRMED
+  status         String   @default("DRAFT")
+  flag           Int      @default(1)
+  created_by     Int?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  po        PurchaseOrder @relation(fields: [po_id], references: [id])
+  supplier  Supplier      @relation(fields: [supplier_id], references: [id])
+  warehouse Warehouse     @relation(fields: [warehouse_id], references: [id])
+  items     GRItem[]
+
+  @@map("goods_receipts")
+}
+
+model GRItem {
+  id           Int     @id @default(autoincrement())
+  receipt_id   Int
+  product_id   Int
+  qty_ordered  Decimal
+  qty_received Decimal
+  unit_cost    Decimal
+
+  receipt GoodsReceipt @relation(fields: [receipt_id], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [product_id], references: [id])
+
+  @@map("gr_items")
+}
+
+// ============================================================
+// DOCUMENT ATTACHMENTS (shared across modules)
+// ============================================================
+
+model DocumentAttachment {
+  id          Int      @id @default(autoincrement())
+  // module: RFQ | SO | DO | INVOICE | PO
+  module      String
+  file_name   String
+  file_path   String
+  file_size   Int?
+  mime_type   String?
+  uploaded_by Int?
+  uploaded_at DateTime @default(now())
+
+  rfq_id     Int?
+  so_id      Int?
+  do_id      Int?
+  invoice_id Int?
+  po_id      Int?
+
+  rfq     RFQ?           @relation(fields: [rfq_id], references: [id], onDelete: Cascade)
+  so      SalesOrder?    @relation(fields: [so_id], references: [id], onDelete: Cascade)
+  do      DeliveryOrder? @relation(fields: [do_id], references: [id], onDelete: Cascade)
+  invoice SalesInvoice?  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  po      PurchaseOrder? @relation(fields: [po_id], references: [id], onDelete: Cascade)
+
+  @@map("document_attachments")
+}
