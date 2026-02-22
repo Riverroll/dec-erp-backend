@@ -41,8 +41,8 @@ export class GoodsReceiptController {
   }
 
   @Patch(':id/confirm')
-  confirm(@Param('id', ParseIntPipe) id: number) {
-    return this.service.confirm(id);
+  confirm(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return this.service.confirm(id, req.user.id);
   }
 
   @Delete(':id')

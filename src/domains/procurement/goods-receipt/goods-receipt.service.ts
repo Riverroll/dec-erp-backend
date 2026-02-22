@@ -20,9 +20,9 @@ export class GoodsReceiptService {
     return this.repo.create(dto, userId);
   }
 
-  async confirm(id: number) {
+  async confirm(id: number, confirmedBy: number) {
     await this.findById(id);
-    return this.repo.confirm(id);
+    return this.repo.confirm(id, confirmedBy);
   }
 
   async remove(id: number) {
