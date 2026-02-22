@@ -62,7 +62,8 @@ export class GoodsReceiptRepository {
     const nextNum = last ? parseInt(last.receipt_number.replace('GR-', '')) + 1 : 1;
     const receipt_number = `GR-${String(nextNum).padStart(5, '0')}`;
 
-    const gr = await this.prisma.goodsReceipt.create({
+    // Create GR record only. Stock movements happen on confirm(), not here.
+    return this.prisma.goodsReceipt.create({
       data: {
         receipt_number,
         po_id: dto.po_id,
@@ -81,52 +82,97 @@ export class GoodsReceiptRepository {
       },
       include: this.include,
     });
+  }
 
-    // Update warehouse stock and create stock movements for each received item
-    for (const item of dto.items) {
-      if (item.qty_received <= 0) continue;
+  async confirm(id: number, confirmedBy: number) {
+    // Load GR with items and warehouse info
+    const gr = await this.prisma.goodsReceipt.findFirst({
+      where: { id, flag: 1 },
+      include: { items: true },
+    });
 
-      // Upsert warehouse stock
+    if (!gr) return null;
+
+    // 1. Mark GR as CONFIRMED
+    const updated = await this.prisma.goodsReceipt.update({
+      where: { id },
+      data: { status: 'CONFIRMED' },
+      include: this.include,
+    });
+
+    // 2. Update warehouse stock and create stock movements (unit_cost = purchase price from GR item)
+    for (const item of gr.items) {
+      if (Number(item.qty_received) <= 0) continue;
+
       await this.prisma.warehouseStock.upsert({
         where: {
           product_id_warehouse_id: {
             product_id: item.product_id,
-            warehouse_id: dto.warehouse_id,
+            warehouse_id: gr.warehouse_id,
           },
         },
         update: { quantity: { increment: item.qty_received } },
         create: {
           product_id: item.product_id,
-          warehouse_id: dto.warehouse_id,
+          warehouse_id: gr.warehouse_id,
           quantity: item.qty_received,
         },
       });
 
-      // Create stock movement (IN)
       await this.prisma.stockMovement.create({
         data: {
           product_id: item.product_id,
-          warehouse_id: dto.warehouse_id,
+          warehouse_id: gr.warehouse_id,
           movement_type: 'IN',
           quantity: item.qty_received,
           reference_type: 'GR',
           reference_id: gr.id,
-          reference_number: receipt_number,
-          unit_cost: item.unit_cost,
-          created_by: createdBy,
+          reference_number: gr.receipt_number,
+          unit_cost: item.unit_cost, // purchase price from GR item
+          created_by: confirmedBy,
         },
       });
     }
 
-    return gr;
-  }
+    // 3. Auto-update PO status based on total received vs ordered across all confirmed GRs
+    if (gr.po_id) {
+      const po = await this.prisma.purchaseOrder.findFirst({
+        where: { id: gr.po_id, flag: 1 },
+        include: { items: true },
+      });
 
-  async confirm(id: number) {
-    return this.prisma.goodsReceipt.update({
-      where: { id },
-      data: { status: 'CONFIRMED' },
-      include: this.include,
-    });
+      if (po) {
+        const confirmedGRs = await this.prisma.goodsReceipt.findMany({
+          where: { po_id: gr.po_id, flag: 1, status: 'CONFIRMED' },
+          include: { items: true },
+        });
+
+        // Sum received qty per product across all confirmed GRs
+        const receivedMap: Record<number, number> = {};
+        for (const confirmedGR of confirmedGRs) {
+          for (const grItem of confirmedGR.items) {
+            receivedMap[grItem.product_id] =
+              (receivedMap[grItem.product_id] ?? 0) + Number(grItem.qty_received);
+          }
+        }
+
+        const allReceived = po.items.every(
+          (poItem) => (receivedMap[poItem.product_id] ?? 0) >= Number(poItem.qty),
+        );
+        const anyReceived = Object.values(receivedMap).some((qty) => qty > 0);
+
+        const newStatus = allReceived ? 'RECEIVED' : anyReceived ? 'PARTIAL' : po.status;
+
+        if (newStatus !== po.status) {
+          await this.prisma.purchaseOrder.update({
+            where: { id: gr.po_id },
+            data: { status: newStatus },
+          });
+        }
+      }
+    }
+
+    return updated;
   }
 
   async softDelete(id: number) {
