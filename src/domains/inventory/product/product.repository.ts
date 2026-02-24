@@ -36,7 +36,11 @@ export class ProductRepository extends BaseRepository {
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder.toLowerCase() },
-        include: { category: true },
+        include: {
+          category: true,
+          brand: true,
+          warehouse_stocks: { select: { quantity: true } },
+        },
       }),
       this.prisma.product.count({ where }),
     ]);
@@ -50,7 +54,7 @@ export class ProductRepository extends BaseRepository {
   findById(id: number) {
     return this.prisma.product.findFirst({
       where: { id, flag: 1 },
-      include: { category: true },
+      include: { category: true, brand: true },
     });
   }
 
@@ -61,7 +65,7 @@ export class ProductRepository extends BaseRepository {
   create(data: any) {
     return this.prisma.product.create({
       data,
-      include: { category: true },
+      include: { category: true, brand: true },
     });
   }
 
@@ -69,7 +73,7 @@ export class ProductRepository extends BaseRepository {
     return this.prisma.product.update({
       where: { id },
       data,
-      include: { category: true },
+      include: { category: true, brand: true },
     });
   }
 
@@ -93,6 +97,71 @@ export class ProductRepository extends BaseRepository {
       orderBy: { po: { po_date: 'desc' } },
       take: 50,
     });
+  }
+
+  findForMarkup(params: { brand_id?: number; category_id?: number; search?: string }) {
+    const where: any = { flag: 1 };
+    if (params.brand_id) where.brand_id = params.brand_id;
+    if (params.category_id) where.category_id = params.category_id;
+    if (params.search) {
+      where.OR = [
+        { product_code: { contains: params.search } },
+        { product_name: { contains: params.search } },
+      ];
+    }
+    return this.prisma.product.findMany({
+      where,
+      select: {
+        id: true,
+        product_code: true,
+        product_name: true,
+        default_selling_price: true,
+        default_purchase_price: true,
+        uom: true,
+        category: { select: { id: true, name: true } },
+        brand: { select: { id: true, brand_name: true } },
+      },
+      orderBy: { product_name: 'asc' },
+      take: 500,
+    });
+  }
+
+  async applyMarkupToProducts(
+    productIds: number[],
+    markupPct: number,
+    brandId: number,
+    year: number,
+    userId: number,
+  ) {
+    const multiplier = 1 + markupPct / 100;
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds }, flag: 1 },
+      select: { id: true, default_selling_price: true, default_purchase_price: true },
+    });
+
+    await Promise.all(
+      products.map((p) =>
+        this.prisma.product.update({
+          where: { id: p.id },
+          data: {
+            default_selling_price: Math.round(Number(p.default_selling_price) * multiplier),
+            default_purchase_price: Math.round(Number(p.default_purchase_price) * multiplier),
+          },
+        }),
+      ),
+    );
+
+    const log = await this.prisma.brandMarkupLog.create({
+      data: {
+        brand_id: brandId,
+        year,
+        markup_pct: markupPct,
+        products_updated: products.length,
+        applied_by: userId,
+      },
+    });
+
+    return { log, products_updated: products.length };
   }
 
   findStockCard(params: {

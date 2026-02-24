@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, Request,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards, Request,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
@@ -41,9 +41,24 @@ export class PurchaseOrderController {
     return this.service.create(dto, req.user.id);
   }
 
+  @Put(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: CreatePODto) {
+    return this.service.update(id, dto);
+  }
+
   @Patch(':id/status')
-  updateStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePOStatusDto) {
-    return this.service.updateStatus(id, dto);
+  updateStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdatePOStatusDto, @Request() req: any) {
+    return this.service.updateStatus(id, dto, req.user?.id);
+  }
+
+  @Get(':id/logs')
+  async getLogs(@Param('id', ParseIntPipe) id: number) {
+    return { data: await this.service.getLogs(id) };
+  }
+
+  @Post(':id/revise')
+  async revise(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
+    return { data: await this.service.revise(id, req.user.id) };
   }
 
   @Delete(':id')

@@ -25,9 +25,28 @@ model User {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  user_roles UserRole[]
+  user_roles    UserRole[]
+  approval_logs ApprovalLog[]
+  notifications Notification[]
 
   @@map("users")
+}
+
+model Notification {
+  id             Int      @id @default(autoincrement())
+  user_id        Int
+  title          String
+  message        String
+  type           String
+  reference_type String?
+  reference_id   Int?
+  is_read        Boolean  @default(false)
+  flag           Int      @default(1)
+  created_at     DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id])
+
+  @@map("notifications")
 }
 
 model Role {
@@ -83,6 +102,47 @@ model RolePermission {
 // MODULE 1: INVENTORY MANAGEMENT
 // ============================================================
 
+model Uom {
+  id         Int      @id @default(autoincrement())
+  uom_code   String   @unique
+  uom_name   String
+  flag       Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("uoms")
+}
+
+model Brand {
+  id           Int      @id @default(autoincrement())
+  brand_code   String   @unique
+  brand_name   String
+  discount_pct Float    @default(0)  // max % discount allowed before price approval required
+  markup_pct   Float    @default(0)  // % to apply when doing annual price markup
+  flag         Int      @default(1)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  products     Product[]
+  markup_logs  BrandMarkupLog[]
+
+  @@map("brands")
+}
+
+model BrandMarkupLog {
+  id               Int      @id @default(autoincrement())
+  brand_id         Int
+  year             Int
+  markup_pct       Float
+  products_updated Int      @default(0)
+  applied_by       Int?
+  applied_at       DateTime @default(now())
+
+  brand Brand @relation(fields: [brand_id], references: [id])
+
+  @@map("brand_markup_logs")
+}
+
 model ProductCategory {
   id         Int      @id @default(autoincrement())
   name       String   @unique
@@ -110,6 +170,9 @@ model Product {
 
   category_id Int?
   category    ProductCategory? @relation(fields: [category_id], references: [id])
+
+  brand_id Int?
+  brand    Brand? @relation(fields: [brand_id], references: [id])
 
   stock_movements        StockMovement[]
   warehouse_stocks       WarehouseStock[]
@@ -287,26 +350,29 @@ model SupplierPIC {
 // ============================================================
 
 model RFQ {
-  id          Int      @id @default(autoincrement())
-  rfq_number  String   @unique
-  rfq_date    DateTime @default(now())
-  customer_id Int
-  notes       String?
-  subtotal    Decimal  @default(0)
-  ppn_rate    Decimal  @default(11)
-  ppn_amount  Decimal  @default(0)
-  grand_total Decimal  @default(0)
-  // DRAFT | SENT | APPROVED | REJECTED | CLOSED
-  status      String   @default("DRAFT")
-  flag        Int      @default(1)
-  created_by  Int?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  rfq_number      String   @unique
+  rfq_date        DateTime @default(now())
+  customer_id     Int
+  notes           String?
+  subtotal        Decimal  @default(0)
+  ppn_rate        Decimal  @default(11)
+  ppn_amount      Decimal  @default(0)
+  grand_total     Decimal  @default(0)
+  // DRAFT | SENT | APPROVED | REJECTED | CLOSED | PENDING_PRICE_APPROVAL
+  status          String   @default("DRAFT")
+  flag            Int      @default(1)
+  created_by      Int?
+  revised_from_id Int?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
 
-  customer     Customer            @relation(fields: [customer_id], references: [id])
-  items        RFQItem[]
-  sales_orders SalesOrder[]
-  attachments  DocumentAttachment[]
+  customer      Customer            @relation(fields: [customer_id], references: [id])
+  items         RFQItem[]
+  sales_orders  SalesOrder[]
+  attachments   DocumentAttachment[]
+  revised_from  RFQ?                @relation("RFQRevisions", fields: [revised_from_id], references: [id])
+  revisions     RFQ[]               @relation("RFQRevisions")
 
   @@map("rfqs")
 }
@@ -485,26 +551,29 @@ model ARPayment {
 // ============================================================
 
 model PurchaseOrder {
-  id          Int      @id @default(autoincrement())
-  po_number   String   @unique
-  po_date     DateTime @default(now())
-  supplier_id Int
-  notes       String?
-  subtotal    Decimal  @default(0)
-  ppn_rate    Decimal  @default(11)
-  ppn_amount  Decimal  @default(0)
-  grand_total Decimal  @default(0)
-  // DRAFT | PENDING_APPROVAL | APPROVED | SENT | RECEIVED | CLOSED
-  status      String   @default("DRAFT")
-  flag        Int      @default(1)
-  created_by  Int?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id              Int      @id @default(autoincrement())
+  po_number       String   @unique
+  po_date         DateTime @default(now())
+  supplier_id     Int
+  notes           String?
+  subtotal        Decimal  @default(0)
+  ppn_rate        Decimal  @default(11)
+  ppn_amount      Decimal  @default(0)
+  grand_total     Decimal  @default(0)
+  // DRAFT | PENDING_APPROVAL | PENDING_PRICE_APPROVAL | APPROVED | SENT | RECEIVED | CLOSED | REJECTED
+  status          String   @default("DRAFT")
+  flag            Int      @default(1)
+  created_by      Int?
+  revised_from_id Int?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
 
   supplier       Supplier            @relation(fields: [supplier_id], references: [id])
   items          POItem[]
   goods_receipts GoodsReceipt[]
   attachments    DocumentAttachment[]
+  revised_from   PurchaseOrder?      @relation("PORevisions", fields: [revised_from_id], references: [id])
+  revisions      PurchaseOrder[]     @relation("PORevisions")
 
   @@map("purchase_orders")
 }
@@ -590,4 +659,23 @@ model DocumentAttachment {
   po      PurchaseOrder? @relation(fields: [po_id], references: [id], onDelete: Cascade)
 
   @@map("document_attachments")
+}
+
+// ============================================================
+// APPROVAL LOG
+// ============================================================
+
+model ApprovalLog {
+  id            Int      @id @default(autoincrement())
+  document_type String   // PO | RFQ
+  document_id   Int
+  // SUBMITTED | APPROVED | REJECTED | REVISED
+  action        String
+  actor_id      Int?
+  notes         String?
+  created_at    DateTime @default(now())
+
+  actor User? @relation(fields: [actor_id], references: [id])
+
+  @@map("approval_logs")
 }

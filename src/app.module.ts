@@ -9,6 +9,7 @@ import { SalesModule } from './domains/sales/sales.module';
 import { ProcurementModule } from './domains/procurement/procurement.module';
 import { DocumentAttachmentModule } from './domains/document-attachment/document-attachment.module';
 import { DashboardModule } from './domains/dashboard/dashboard.module';
+import { NotificationModule } from './domains/notification/notification.module';
 import { MulterModule } from '@nestjs/platform-express';
 import * as fs from 'fs';
 
@@ -32,6 +33,7 @@ if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
     ProcurementModule,
     DocumentAttachmentModule,
     DashboardModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}

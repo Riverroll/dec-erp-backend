@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { ProductRepository } from './product.repository';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -89,6 +89,16 @@ export class ProductService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async getForMarkup(params: { brand_id?: number; category_id?: number; search?: string }) {
+    return this.productRepository.findForMarkup(params);
+  }
+
+  async applyMarkup(productIds: number[], markupPct: number, brandId: number, year: number, userId: number) {
+    if (!productIds?.length) throw new BadRequestException('No products selected');
+    if (!markupPct || markupPct <= 0) throw new BadRequestException('Markup % must be greater than 0');
+    return this.productRepository.applyMarkupToProducts(productIds, markupPct, brandId, year, userId);
   }
 
   get messages() {
