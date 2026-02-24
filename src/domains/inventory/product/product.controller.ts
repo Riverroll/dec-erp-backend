@@ -17,7 +17,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger'
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { BaseQueryDto } from '../../../common/dto/base-query.dto';
+import { ProductQueryDto } from './dto/product-query.dto';
+import { ApplyMarkupDto } from './dto/apply-markup.dto';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 
 @ApiTags('Inventory — Products')
@@ -28,8 +29,8 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List products (paginated, with category)' })
-  async findAll(@Query() params: BaseQueryDto) {
+  @ApiOperation({ summary: 'List products (paginated, filterable by brand & category)' })
+  async findAll(@Query() params: ProductQueryDto) {
     const result = await this.productService.findAll(params);
     return { message: this.productService.messages.FETCHED, data: result.data, meta: result.meta };
   }
@@ -79,17 +80,14 @@ export class ProductController {
   @Post('apply-markup')
   @ApiOperation({ summary: 'Apply price markup to selected products' })
   async applyMarkup(
-    @Body('product_ids') productIds: number[],
-    @Body('markup_pct') markupPct: number,
-    @Body('brand_id') brandId: number,
-    @Body('year') year: number,
+    @Body() dto: ApplyMarkupDto,
     @Request() req: any,
   ) {
     const data = await this.productService.applyMarkup(
-      productIds,
-      Number(markupPct),
-      Number(brandId),
-      year ?? new Date().getFullYear(),
+      dto.product_ids,
+      dto.markup_pct,
+      dto.brand_id,
+      dto.year,
       req.user.id,
     );
     return { data };
@@ -99,6 +97,13 @@ export class ProductController {
   @ApiOperation({ summary: 'Get purchase history for a product (PO lines)' })
   async getPurchaseHistory(@Param('id', ParseIntPipe) id: number) {
     const data = await this.productService.getPurchaseHistory(id);
+    return { data };
+  }
+
+  @Get(':id/markup-history')
+  @ApiOperation({ summary: 'Get brand markup run history for a product' })
+  async getMarkupHistory(@Param('id', ParseIntPipe) id: number) {
+    const data = await this.productService.findMarkupHistory(id);
     return { data };
   }
 
