@@ -51,6 +51,15 @@ export class SalesOrderController {
     return { data: await this.service.createDO(id, req.user.id) };
   }
 
+  @Patch(':id/credit-approval')
+  async creditApproval(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('action') action: 'APPROVE' | 'REJECT',
+    @Body('new_credit_limit') newCreditLimit?: number,
+  ) {
+    return { data: await this.service.creditApproval(id, action, newCreditLimit) };
+  }
+
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id);

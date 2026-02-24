@@ -54,6 +54,12 @@ export class CreateProductDto {
   @IsInt()
   category_id?: number;
 
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  brand_id?: number;
+
   @ApiPropertyOptional({ example: 'https://example.com/img.jpg' })
   @IsOptional()
   @IsString()

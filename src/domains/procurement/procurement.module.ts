@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { NotificationModule } from '../notification/notification.module';
 
 import { PurchaseOrderRepository } from './purchase-order/purchase-order.repository';
 import { PurchaseOrderService } from './purchase-order/purchase-order.service';
@@ -10,7 +11,7 @@ import { GoodsReceiptService } from './goods-receipt/goods-receipt.service';
 import { GoodsReceiptController } from './goods-receipt/goods-receipt.controller';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, NotificationModule],
   controllers: [PurchaseOrderController, GoodsReceiptController],
   providers: [
     PurchaseOrderRepository, PurchaseOrderService,

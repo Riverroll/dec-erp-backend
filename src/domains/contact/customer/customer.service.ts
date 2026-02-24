@@ -56,6 +56,11 @@ export class CustomerService {
     return summary;
   }
 
+  async updateCreditLimit(id: number, creditLimit: number) {
+    await this.findById(id);
+    return this.customerRepository.updateCreditLimit(id, creditLimit);
+  }
+
   get messages() {
     return MSG;
   }

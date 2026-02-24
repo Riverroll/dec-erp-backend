@@ -97,12 +97,125 @@ export class RFQRepository {
     });
   }
 
-  async updateStatus(id: number, status: string) {
+  async update(id: number, dto: CreateRFQDto) {
+    const ppn_rate = dto.ppn_rate ?? 11;
+    const subtotal = dto.items.reduce((s, i) => s + i.qty * i.unit_price, 0);
+    const ppn_amount = subtotal * (ppn_rate / 100);
+    const grand_total = subtotal + ppn_amount;
+
+    await this.prisma.rFQItem.deleteMany({ where: { rfq_id: id } });
+
     return this.prisma.rFQ.update({
       where: { id },
-      data: { status },
+      data: {
+        customer_id: dto.customer_id,
+        notes: dto.notes,
+        ppn_rate,
+        subtotal,
+        ppn_amount,
+        grand_total,
+        items: {
+          create: dto.items.map((item) => ({
+            product_id: item.product_id,
+            warehouse_id: item.warehouse_id,
+            qty: item.qty,
+            unit_price: item.unit_price,
+            subtotal: item.qty * item.unit_price,
+          })),
+        },
+      },
       include: this.include,
     });
+  }
+
+  private actionForStatus(status: string): string {
+    if (status === 'PENDING_APPROVAL' || status === 'PENDING_PRICE_APPROVAL') return 'SUBMITTED';
+    if (status === 'APPROVED') return 'APPROVED';
+    if (status === 'REJECTED') return 'REJECTED';
+    return status;
+  }
+
+  async updateStatus(id: number, status: string, actorId?: number, notes?: string) {
+    const loggableStatuses = ['PENDING_APPROVAL', 'PENDING_PRICE_APPROVAL', 'APPROVED', 'REJECTED'];
+    const [rfq] = await Promise.all([
+      this.prisma.rFQ.update({
+        where: { id },
+        data: { status },
+        include: this.include,
+      }),
+      ...(loggableStatuses.includes(status)
+        ? [this.prisma.approvalLog.create({
+            data: {
+              document_type: 'RFQ',
+              document_id: id,
+              action: this.actionForStatus(status),
+              actor_id: actorId ?? null,
+              notes: notes ?? null,
+            },
+          })]
+        : []),
+    ]);
+    return rfq;
+  }
+
+  async getLogs(id: number) {
+    return this.prisma.approvalLog.findMany({
+      where: { document_type: 'RFQ', document_id: id },
+      include: { actor: { select: { full_name: true } } },
+      orderBy: { created_at: 'asc' },
+    });
+  }
+
+  async revise(id: number, userId: number) {
+    const original = await this.prisma.rFQ.findFirst({
+      where: { id, flag: 1 },
+      include: { items: true },
+    });
+    if (!original) return null;
+
+    const lastRFQ = await this.prisma.rFQ.findFirst({
+      orderBy: { id: 'desc' },
+      select: { rfq_number: true },
+    });
+    const nextNum = lastRFQ ? parseInt(lastRFQ.rfq_number.replace('RFQ-', '')) + 1 : 1;
+    const rfq_number = `RFQ-${String(nextNum).padStart(5, '0')}`;
+
+    const newRfq = await this.prisma.rFQ.create({
+      data: {
+        rfq_number,
+        customer_id: original.customer_id,
+        notes: original.notes,
+        ppn_rate: original.ppn_rate,
+        subtotal: original.subtotal,
+        ppn_amount: original.ppn_amount,
+        grand_total: original.grand_total,
+        created_by: userId,
+        revised_from_id: original.id,
+        status: 'DRAFT',
+        items: {
+          create: original.items.map((item) => ({
+            product_id: item.product_id,
+            warehouse_id: item.warehouse_id,
+            qty: Number(item.qty),
+            unit_price: Number(item.unit_price),
+            subtotal: Number(item.subtotal),
+          })),
+        },
+      },
+      include: this.include,
+    });
+
+    await this.prisma.approvalLog.create({
+      data: {
+        document_type: 'RFQ',
+        document_id: id,
+        action: 'REVISED',
+        actor_id: userId,
+        notes: `Revised as ${rfq_number}`,
+      },
+    });
+
+    return newRfq;
   }
 
   async softDelete(id: number) {
@@ -128,6 +241,16 @@ export class RFQRepository {
     const ppn_amount = subtotal * (ppn_rate / 100);
     const grand_total = subtotal + ppn_amount;
 
+    // Auto-detect indent: check total stock across all warehouses for each item
+    const productIds = [...new Set(rfq.items.map((i) => i.product_id))];
+    const stockAgg = await this.prisma.warehouseStock.groupBy({
+      by: ['product_id'],
+      where: { product_id: { in: productIds } },
+      _sum: { quantity: true },
+    });
+    const stockMap = new Map(stockAgg.map((s) => [s.product_id, Number(s._sum.quantity ?? 0)]));
+    const is_indent = rfq.items.some((i) => (stockMap.get(i.product_id) ?? 0) < Number(i.qty));
+
     return this.prisma.salesOrder.create({
       data: {
         so_number,
@@ -138,6 +261,7 @@ export class RFQRepository {
         subtotal,
         ppn_amount,
         grand_total,
+        is_indent,
         created_by: createdBy,
         items: {
           create: rfq.items.map((item) => ({

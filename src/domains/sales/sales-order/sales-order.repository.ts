@@ -105,6 +105,40 @@ export class SalesOrderRepository {
     return this.prisma.salesOrder.update({ where: { id }, data: { flag: 2 } });
   }
 
+  /** Check if confirming this SO would exceed the customer's credit limit.
+   *  outstanding = sum of unpaid invoice amounts (excluding current SO's invoices).
+   *  If credit_limit = 0 → no limit enforced. */
+  async checkCreditLimit(customerId: number, soGrandTotal: number, soId: number) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId },
+      select: { credit_limit: true },
+    });
+    const limit = Number(customer?.credit_limit ?? 0);
+    if (limit <= 0) return { exceeded: false, outstanding: 0, limit: 0 };
+
+    const openInvoices = await this.prisma.salesInvoice.findMany({
+      where: { customer_id: customerId, flag: 1, status: { in: ['ISSUED', 'PARTIAL', 'OVERDUE'] } },
+      include: { payments: { where: { flag: 1 } } },
+    });
+    const outstanding = openInvoices.reduce((sum, inv) => {
+      const paid = inv.payments.reduce((s, p) => s + Number(p.amount), 0);
+      return sum + (Number(inv.grand_total) - paid);
+    }, 0);
+
+    return {
+      exceeded: outstanding + soGrandTotal > limit,
+      outstanding,
+      limit,
+    };
+  }
+
+  async updateCustomerCreditLimit(customerId: number, newLimit: number) {
+    return this.prisma.customer.update({
+      where: { id: customerId },
+      data: { credit_limit: newLimit },
+    });
+  }
+
   async createDO(soId: number, createdBy: number) {
     const so = await this.prisma.salesOrder.findFirst({
       where: { id: soId, flag: 1 },

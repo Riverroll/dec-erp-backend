@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { NotificationModule } from '../notification/notification.module';
 
 import { RFQRepository } from './rfq/rfq.repository';
 import { RFQService } from './rfq/rfq.service';
@@ -22,7 +23,7 @@ import { ARPaymentService } from './ar-payment/ar-payment.service';
 import { ARPaymentController } from './ar-payment/ar-payment.controller';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, NotificationModule],
   controllers: [
     RFQController,
     SalesOrderController,

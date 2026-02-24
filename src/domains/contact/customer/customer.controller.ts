@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -62,6 +63,16 @@ export class CustomerController {
   ) {
     const data = await this.customerService.update(id, dto);
     return { message: this.customerService.messages.UPDATED, data };
+  }
+
+  @Patch(':id/credit-limit')
+  @ApiOperation({ summary: 'Set customer credit limit' })
+  async updateCreditLimit(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('credit_limit') creditLimit: number,
+  ) {
+    const data = await this.customerService.updateCreditLimit(id, Number(creditLimit));
+    return { message: 'Credit limit updated', data };
   }
 
   @Delete(':id')

@@ -11,6 +11,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Request,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ProductService } from './product.service';
@@ -58,6 +59,40 @@ export class ProductController {
       limit: limit ? Number(limit) : 20,
     });
     return { message: this.productService.messages.STOCK_CARD_FETCHED, data: result.data, meta: result.meta };
+  }
+
+  @Get('for-markup')
+  @ApiOperation({ summary: 'Get products for markup selection (filter by brand/category/search)' })
+  async getForMarkup(
+    @Query('brand_id') brand_id?: string,
+    @Query('category_id') category_id?: string,
+    @Query('search') search?: string,
+  ) {
+    const data = await this.productService.getForMarkup({
+      brand_id: brand_id ? Number(brand_id) : undefined,
+      category_id: category_id ? Number(category_id) : undefined,
+      search,
+    });
+    return { data };
+  }
+
+  @Post('apply-markup')
+  @ApiOperation({ summary: 'Apply price markup to selected products' })
+  async applyMarkup(
+    @Body('product_ids') productIds: number[],
+    @Body('markup_pct') markupPct: number,
+    @Body('brand_id') brandId: number,
+    @Body('year') year: number,
+    @Request() req: any,
+  ) {
+    const data = await this.productService.applyMarkup(
+      productIds,
+      Number(markupPct),
+      Number(brandId),
+      year ?? new Date().getFullYear(),
+      req.user.id,
+    );
+    return { data };
   }
 
   @Get(':id/purchase-history')

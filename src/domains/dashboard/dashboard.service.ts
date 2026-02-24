@@ -154,7 +154,7 @@ export class DashboardService {
   }
 
   async getPendingApprovals() {
-    const [pos, rfqs] = await Promise.all([
+    const [pos, rfqs, pendingSos, historyPos, historyRfqs, historySos] = await Promise.all([
       this.prisma.purchaseOrder.findMany({
         where: { flag: 1, status: { in: ['PENDING_APPROVAL', 'PENDING_PRICE_APPROVAL'] } },
         include: { supplier: { select: { supplier_name: true } } },
@@ -165,7 +165,64 @@ export class DashboardService {
         include: { customer: { select: { customer_name: true } } },
         orderBy: { updated_at: 'desc' },
       }),
+      this.prisma.salesOrder.findMany({
+        where: { flag: 1, status: 'PENDING_CREDIT_APPROVAL' },
+        include: { customer: { select: { customer_name: true, credit_limit: true } } },
+        orderBy: { updated_at: 'desc' },
+      }),
+      this.prisma.purchaseOrder.findMany({
+        where: { flag: 1, status: { in: ['APPROVED', 'REJECTED'] } },
+        include: { supplier: { select: { supplier_name: true } } },
+        orderBy: { updated_at: 'desc' },
+        take: 50,
+      }),
+      this.prisma.rFQ.findMany({
+        where: { flag: 1, status: { in: ['APPROVED', 'REJECTED'] } },
+        include: { customer: { select: { customer_name: true } } },
+        orderBy: { updated_at: 'desc' },
+        take: 50,
+      }),
+      this.prisma.salesOrder.findMany({
+        where: { flag: 1, status: { in: ['CONFIRMED', 'CANCELLED'] }, grand_total: { gt: 0 } },
+        include: { customer: { select: { customer_name: true } } },
+        orderBy: { updated_at: 'desc' },
+        take: 30,
+      }),
     ]);
-    return { pos, rfqs };
+
+    const history = [
+      ...historyPos.map((p) => ({
+        id: p.id,
+        type: 'PO' as const,
+        number: p.po_number,
+        date: p.po_date,
+        updated_at: p.updated_at,
+        status: p.status,
+        grand_total: p.grand_total,
+        party: p.supplier?.supplier_name ?? null,
+      })),
+      ...historyRfqs.map((r) => ({
+        id: r.id,
+        type: 'RFQ' as const,
+        number: r.rfq_number,
+        date: r.rfq_date,
+        updated_at: r.updated_at,
+        status: r.status,
+        grand_total: r.grand_total,
+        party: r.customer?.customer_name ?? null,
+      })),
+      ...historySos.map((s) => ({
+        id: s.id,
+        type: 'SO' as const,
+        number: s.so_number,
+        date: s.so_date,
+        updated_at: s.updated_at,
+        status: s.status,
+        grand_total: s.grand_total,
+        party: s.customer?.customer_name ?? null,
+      })),
+    ].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+
+    return { pos, rfqs, pendingSos, history };
   }
 }

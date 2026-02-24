@@ -61,6 +61,10 @@ export class CustomerRepository extends BaseRepository {
     return this.softDelete(this.prisma.customer, id);
   }
 
+  updateCreditLimit(id: number, creditLimit: number) {
+    return this.prisma.customer.update({ where: { id }, data: { credit_limit: creditLimit } });
+  }
+
   async getSummary(id: number) {
     const customer = await this.prisma.customer.findFirst({
       where: { id, flag: 1 },
