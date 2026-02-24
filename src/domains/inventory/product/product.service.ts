@@ -19,7 +19,7 @@ const MSG = {
 export class ProductService {
   constructor(private readonly productRepository: ProductRepository) {}
 
-  async findAll(params: BaseQueryDto) {
+  async findAll(params: BaseQueryDto & { brand_id?: number; category_id?: number }) {
     return this.productRepository.findAllWithCategory(params);
   }
 
@@ -27,6 +27,11 @@ export class ProductService {
     const product = await this.productRepository.findById(id);
     if (!product) throw new NotFoundException(MSG.NOT_FOUND);
     return product;
+  }
+
+  async findMarkupHistory(id: number) {
+    await this.findById(id);
+    return this.productRepository.findMarkupHistory(id);
   }
 
   async create(dto: CreateProductDto) {

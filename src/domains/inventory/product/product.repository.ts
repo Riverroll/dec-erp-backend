@@ -17,11 +17,13 @@ export class ProductRepository extends BaseRepository {
     );
   }
 
-  async findAllWithCategory(params: BaseQueryDto) {
-    const { page = 1, limit = 20, search, sortBy = 'created_at', sortOrder = 'DESC' } = params;
+  async findAllWithCategory(params: BaseQueryDto & { brand_id?: number; category_id?: number }) {
+    const { page = 1, limit = 20, search, sortBy = 'created_at', sortOrder = 'DESC', brand_id, category_id } = params;
     const skip = (page - 1) * limit;
 
     const where: any = { flag: 1 };
+    if (brand_id) where.brand_id = Number(brand_id);
+    if (category_id) where.category_id = Number(category_id);
     if (search) {
       where.OR = [
         { product_code: { contains: search } },
@@ -55,6 +57,31 @@ export class ProductRepository extends BaseRepository {
     return this.prisma.product.findFirst({
       where: { id, flag: 1 },
       include: { category: true, brand: true },
+    });
+  }
+
+  async findMarkupHistory(id: number) {
+    const product = await this.prisma.product.findFirst({
+      where: { id, flag: 1 },
+      select: { brand_id: true, brand: { select: { brand_name: true } } },
+    });
+    if (!product?.brand_id) return [];
+    const logs = await this.prisma.brandMarkupLog.findMany({
+      where: { brand_id: product.brand_id },
+      orderBy: { applied_at: 'desc' },
+      include: {
+        brand: { select: { brand_name: true, brand_code: true } },
+      },
+    });
+    // Only return log entries that included this specific product
+    return logs.filter((log) => {
+      if (!log.product_ids) return true; // Legacy entries without product_ids — show them all
+      try {
+        const ids: number[] = JSON.parse(log.product_ids);
+        return ids.includes(id);
+      } catch {
+        return true;
+      }
     });
   }
 
@@ -133,9 +160,12 @@ export class ProductRepository extends BaseRepository {
     year: number,
     userId: number,
   ) {
+    if (!productIds?.length) throw new Error('No product IDs provided');
     const multiplier = 1 + markupPct / 100;
+    const ids = productIds.map(Number).filter((n) => !isNaN(n) && n > 0);
+    if (!ids.length) throw new Error('No valid product IDs provided');
     const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds }, flag: 1 },
+      where: { id: { in: ids }, flag: 1 },
       select: { id: true, default_selling_price: true, default_purchase_price: true },
     });
 
@@ -151,17 +181,19 @@ export class ProductRepository extends BaseRepository {
       ),
     );
 
+    const updatedIds = products.map((p) => p.id);
     const log = await this.prisma.brandMarkupLog.create({
       data: {
         brand_id: brandId,
         year,
         markup_pct: markupPct,
-        products_updated: products.length,
+        products_updated: updatedIds.length,
+        product_ids: JSON.stringify(updatedIds),
         applied_by: userId,
       },
     });
 
-    return { log, products_updated: products.length };
+    return { log, products_updated: updatedIds.length };
   }
 
   findStockCard(params: {

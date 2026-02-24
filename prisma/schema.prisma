@@ -135,6 +135,7 @@ model BrandMarkupLog {
   year             Int
   markup_pct       Float
   products_updated Int      @default(0)
+  product_ids      String?  // JSON array of product IDs that were actually updated
   applied_by       Int?
   applied_at       DateTime @default(now())
 
