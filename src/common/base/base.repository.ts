@@ -23,6 +23,7 @@ export abstract class BaseRepository {
     params: BaseQueryDto,
     searchFields: string[] = [],
     extraWhere: Record<string, any> = {},
+    extraOptions: Record<string, any> = {},
   ): Promise<PaginatedResult<T>> {
     const { page = 1, limit = 20, search, sortBy = 'created_at', sortOrder = 'DESC' } = params;
     const skip = (page - 1) * limit;
@@ -41,6 +42,7 @@ export abstract class BaseRepository {
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder.toLowerCase() },
+        ...extraOptions,
       }),
       model.count({ where }),
     ]);

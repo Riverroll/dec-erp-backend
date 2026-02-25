@@ -101,6 +101,13 @@ export class CreateCustomerDto {
   @IsString()
   status?: string;
 
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  sales_person_id?: number;
+
   @ApiPropertyOptional({ type: [CreateCustomerPICDto] })
   @IsOptional()
   @IsArray()

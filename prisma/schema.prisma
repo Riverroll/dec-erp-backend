@@ -25,9 +25,10 @@ model User {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  user_roles    UserRole[]
-  approval_logs ApprovalLog[]
-  notifications Notification[]
+  user_roles         UserRole[]
+  approval_logs      ApprovalLog[]
+  notifications      Notification[]
+  customers_assigned Customer[]
 
   @@map("users")
 }
@@ -280,6 +281,9 @@ model Customer {
   flag             Int      @default(1)
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt
+
+  sales_person_id Int?
+  sales_person    User? @relation(fields: [sales_person_id], references: [id])
 
   pics                   CustomerPIC[]
   rfqs                   RFQ[]

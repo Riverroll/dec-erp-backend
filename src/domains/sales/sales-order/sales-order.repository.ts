@@ -8,7 +8,7 @@ export class SalesOrderRepository {
 
   private get include() {
     return {
-      customer: { select: { customer_name: true, customer_code: true } },
+      customer: { select: { customer_name: true, customer_code: true, credit_limit: true } },
       rfq: { select: { rfq_number: true } },
       items: {
         include: {

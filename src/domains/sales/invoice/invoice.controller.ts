@@ -15,8 +15,8 @@ export class InvoiceController {
   constructor(private readonly service: InvoiceService) {}
 
   @Get('aging')
-  async getAging() {
-    return { data: await this.service.getAgingData() };
+  async getAging(@Query('customer_id') customerId?: string) {
+    return { data: await this.service.getAgingData(customerId ? Number(customerId) : undefined) };
   }
 
   @Get()

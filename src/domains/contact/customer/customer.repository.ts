@@ -14,13 +14,18 @@ export class CustomerRepository extends BaseRepository {
       this.prisma.customer,
       params,
       ['customer_code', 'customer_name', 'industry'],
+      {},
+      { include: { sales_person: { select: { id: true, full_name: true } } } },
     );
   }
 
   findById(id: number) {
     return this.prisma.customer.findFirst({
       where: { id, flag: 1 },
-      include: { pics: { where: { flag: 1 }, orderBy: { is_primary: 'desc' } } },
+      include: {
+        pics: { where: { flag: 1 }, orderBy: { is_primary: 'desc' } },
+        sales_person: { select: { id: true, full_name: true, email: true, phone: true } },
+      },
     });
   }
 
@@ -68,7 +73,10 @@ export class CustomerRepository extends BaseRepository {
   async getSummary(id: number) {
     const customer = await this.prisma.customer.findFirst({
       where: { id, flag: 1 },
-      include: { pics: { where: { flag: 1 }, orderBy: { is_primary: 'desc' } } },
+      include: {
+        pics: { where: { flag: 1 }, orderBy: { is_primary: 'desc' } },
+        sales_person: { select: { id: true, full_name: true, email: true, phone: true } },
+      },
     });
     if (!customer) return null;
 

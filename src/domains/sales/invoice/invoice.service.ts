@@ -31,8 +31,8 @@ export class InvoiceService {
     return this.repo.softDelete(id);
   }
 
-  async getAgingData() {
-    const rows = await this.repo.findAgingData();
+  async getAgingData(customerId?: number) {
+    const rows = await this.repo.findAgingData(customerId);
 
     const summary = {
       '0-30': 0,
