@@ -96,6 +96,13 @@ export class CreateCustomerDto {
   @Min(0)
   credit_limit?: number;
 
+  @ApiPropertyOptional({ example: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  overdue_credit?: number;
+
   @ApiPropertyOptional({ example: 'ACTIVE', enum: ['ACTIVE', 'INACTIVE', 'BLOCKED'] })
   @IsOptional()
   @IsString()

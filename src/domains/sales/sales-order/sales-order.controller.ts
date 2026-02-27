@@ -1,11 +1,12 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, Request,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, Request, Res, StreamableFile,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { SalesOrderService } from './sales-order.service';
 import { CreateSODto } from './dto/create-so.dto';
 import { UpdateSOStatusDto } from './dto/update-so.dto';
+import type { Response } from 'express';
 
 @ApiTags('Sales - Sales Orders')
 @ApiBearerAuth()
@@ -29,6 +30,19 @@ export class SalesOrderController {
     });
     const p = parseInt(page), l = parseInt(limit);
     return { data: result.data, meta: { total: result.total, page: p, limit: l, totalPages: Math.ceil(result.total / l) } };
+  }
+
+  @Get(':id/pdf')
+  async getPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.service.generatePdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
   }
 
   @Get(':id')

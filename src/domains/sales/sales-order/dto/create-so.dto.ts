@@ -32,6 +32,10 @@ export class CreateSODto {
 
   @IsOptional()
   @IsString()
+  customer_po_number?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 
   @IsOptional()

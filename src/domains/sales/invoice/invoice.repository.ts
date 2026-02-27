@@ -10,6 +10,7 @@ export class InvoiceRepository {
     return {
       customer: { select: { customer_name: true, customer_code: true } },
       do: { select: { do_number: true } },
+      sales_person: { select: { id: true, full_name: true } },
       items: {
         include: {
           product: { select: { product_name: true, product_code: true, uom: true } },

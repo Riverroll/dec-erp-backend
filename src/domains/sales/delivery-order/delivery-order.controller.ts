@@ -1,11 +1,12 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, Request,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, Request, Res, StreamableFile,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { DeliveryOrderService } from './delivery-order.service';
 import { CreateDODto } from './dto/create-do.dto';
 import { UpdateDOStatusDto } from './dto/update-do.dto';
+import type { Response } from 'express';
 
 @ApiTags('Sales - Delivery Orders')
 @ApiBearerAuth()
@@ -31,6 +32,19 @@ export class DeliveryOrderController {
     return { data: result.data, meta: { total: result.total, page: p, limit: l, totalPages: Math.ceil(result.total / l) } };
   }
 
+  @Get(':id/pdf')
+  async getPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.service.generatePdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
+  }
+
   @Get(':id')
   async findById(@Param('id', ParseIntPipe) id: number) {
     return { data: await this.service.findById(id) };
@@ -47,8 +61,12 @@ export class DeliveryOrderController {
   }
 
   @Post(':id/create-invoice')
-  async createInvoice(@Param('id', ParseIntPipe) id: number, @Request() req: any) {
-    return { data: await this.service.createInvoice(id, req.user.id) };
+  async createInvoice(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: any,
+    @Body() body: { ppn_rate?: number } = {},
+  ) {
+    return { data: await this.service.createInvoice(id, req.user.id, body.ppn_rate) };
   }
 
   @Delete(':id')

@@ -101,12 +101,17 @@ export class DeliveryOrderRepository {
     return this.prisma.deliveryOrder.update({ where: { id }, data: { flag: 2 } });
   }
 
-  async createInvoice(doId: number, createdBy: number) {
+  async createInvoice(doId: number, createdBy: number, overridePpnRate?: number) {
     const doc = await this.prisma.deliveryOrder.findFirst({
       where: { id: doId, flag: 1 },
       include: {
         items: true,
-        so: { select: { ppn_rate: true } },
+        so: {
+          select: {
+            ppn_rate: true,
+            customer: { select: { sales_person_id: true } },
+          },
+        },
       },
     });
     if (!doc) return null;
@@ -118,16 +123,18 @@ export class DeliveryOrderRepository {
     const nextNum = last ? parseInt(last.invoice_number.replace('INV-', '')) + 1 : 1;
     const invoice_number = `INV-${String(nextNum).padStart(5, '0')}`;
 
-    const ppn_rate = doc.so ? Number((doc.so as any).ppn_rate) : 11;
+    const ppn_rate = overridePpnRate ?? (doc.so ? Number((doc.so as any).ppn_rate) : 11);
     const subtotal = doc.items.reduce((s, i) => s + Number(i.qty) * Number(i.unit_price), 0);
     const ppn_amount = subtotal * (ppn_rate / 100);
     const grand_total = subtotal + ppn_amount;
+    const sales_person_id = (doc.so as any)?.customer?.sales_person_id ?? null;
 
     return this.prisma.salesInvoice.create({
       data: {
         invoice_number,
         do_id: doc.id,
         customer_id: doc.customer_id,
+        sales_person_id,
         ppn_rate,
         subtotal,
         ppn_amount,
@@ -146,6 +153,7 @@ export class DeliveryOrderRepository {
       include: {
         customer: { select: { customer_name: true, customer_code: true } },
         do: { select: { do_number: true } },
+        sales_person: { select: { id: true, full_name: true } },
         items: {
           include: {
             product: { select: { product_name: true, product_code: true, uom: true } },

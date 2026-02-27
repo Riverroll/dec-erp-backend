@@ -29,6 +29,7 @@ model User {
   approval_logs      ApprovalLog[]
   notifications      Notification[]
   customers_assigned Customer[]
+  sales_invoices     SalesInvoice[]
 
   @@map("users")
 }
@@ -185,6 +186,7 @@ model Product {
   po_items               POItem[]
   gr_items               GRItem[]
   customer_product_codes CustomerProductCode[]
+  supplier_product_codes SupplierProductCode[]
 
   @@map("products")
 }
@@ -203,6 +205,22 @@ model CustomerProductCode {
 
   @@unique([customer_id, product_id])
   @@map("customer_product_codes")
+}
+
+model SupplierProductCode {
+  id                    Int      @id @default(autoincrement())
+  supplier_id           Int
+  product_id            Int
+  supplier_product_code String
+  notes                 String?
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplier_id], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@unique([supplier_id, product_id])
+  @@map("supplier_product_codes")
 }
 
 model Warehouse {
@@ -277,6 +295,7 @@ model Customer {
   shipping_address String?
   payment_terms    Int      @default(30)
   credit_limit     Decimal  @default(0)
+  overdue_credit   Decimal  @default(0)
   status           String   @default("ACTIVE")
   flag             Int      @default(1)
   created_at       DateTime @default(now())
@@ -326,9 +345,10 @@ model Supplier {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  pics           SupplierPIC[]
-  purchase_orders PurchaseOrder[]
-  goods_receipts  GoodsReceipt[]
+  pics                   SupplierPIC[]
+  purchase_orders        PurchaseOrder[]
+  goods_receipts         GoodsReceipt[]
+  supplier_product_codes SupplierProductCode[]
 
   @@map("suppliers")
 }
@@ -400,11 +420,12 @@ model RFQItem {
 
 model SalesOrder {
   id          Int      @id @default(autoincrement())
-  so_number   String   @unique
-  so_date     DateTime @default(now())
-  customer_id Int
-  rfq_id      Int?
-  notes       String?
+  so_number          String   @unique
+  so_date            DateTime @default(now())
+  customer_id        Int
+  rfq_id             Int?
+  customer_po_number String?
+  notes              String?
   subtotal    Decimal  @default(0)
   ppn_rate    Decimal  @default(11)
   ppn_amount  Decimal  @default(0)
@@ -492,25 +513,27 @@ model SalesInvoice {
   invoice_number String    @unique
   invoice_date   DateTime  @default(now())
   due_date       DateTime?
-  do_id          Int
-  customer_id    Int
-  subtotal       Decimal   @default(0)
-  ppn_rate       Decimal   @default(11)
-  ppn_amount     Decimal   @default(0)
-  grand_total    Decimal   @default(0)
-  notes          String?
+  do_id           Int
+  customer_id     Int
+  sales_person_id Int?
+  subtotal        Decimal   @default(0)
+  ppn_rate        Decimal   @default(11)
+  ppn_amount      Decimal   @default(0)
+  grand_total     Decimal   @default(0)
+  notes           String?
   // DRAFT | ISSUED | PARTIAL | PAID | OVERDUE
-  status         String    @default("DRAFT")
-  flag           Int       @default(1)
-  created_by     Int?
-  created_at     DateTime  @default(now())
-  updated_at     DateTime  @updatedAt
+  status          String    @default("DRAFT")
+  flag            Int       @default(1)
+  created_by      Int?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
-  do          DeliveryOrder       @relation(fields: [do_id], references: [id])
-  customer    Customer            @relation(fields: [customer_id], references: [id])
-  items       InvoiceItem[]
-  payments    ARPayment[]
-  attachments DocumentAttachment[]
+  do           DeliveryOrder       @relation(fields: [do_id], references: [id])
+  customer     Customer            @relation(fields: [customer_id], references: [id])
+  sales_person User?               @relation(fields: [sales_person_id], references: [id])
+  items        InvoiceItem[]
+  payments     ARPayment[]
+  attachments  DocumentAttachment[]
 
   @@map("sales_invoices")
 }
