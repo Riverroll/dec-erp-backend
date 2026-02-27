@@ -3,6 +3,7 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
+  StreamableFile,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
@@ -16,6 +17,9 @@ export class ResponseInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       map((result) => {
+        // StreamableFile (PDF downloads etc.) must bypass wrapping
+        if (result instanceof StreamableFile) return result;
+
         const { message, data, meta } = result || {};
 
         return {

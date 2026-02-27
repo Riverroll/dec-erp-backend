@@ -10,6 +10,7 @@ export class InvoiceRepository {
     return {
       customer: { select: { customer_name: true, customer_code: true } },
       do: { select: { do_number: true } },
+      sales_person: { select: { id: true, full_name: true } },
       items: {
         include: {
           product: { select: { product_name: true, product_code: true, uom: true } },
@@ -108,12 +109,16 @@ export class InvoiceRepository {
   }
 
   // For AR Aging — invoices ISSUED or PARTIAL
-  async findAgingData() {
+  async findAgingData(customerId?: number) {
     const now = new Date();
     const invoices = await this.prisma.salesInvoice.findMany({
-      where: { flag: 1, status: { in: ['ISSUED', 'PARTIAL', 'OVERDUE'] } },
+      where: {
+        flag: 1,
+        status: { in: ['ISSUED', 'PARTIAL', 'OVERDUE'] },
+        ...(customerId ? { customer_id: customerId } : {}),
+      },
       include: {
-        customer: { select: { customer_name: true, customer_code: true } },
+        customer: { select: { id: true, customer_name: true, customer_code: true } },
         payments: { where: { flag: 1 }, select: { amount: true } },
       },
     });
@@ -132,6 +137,7 @@ export class InvoiceRepository {
 
       return {
         invoice_number: inv.invoice_number,
+        customer_id: inv.customer.id,
         customer_name: inv.customer.customer_name,
         customer_code: inv.customer.customer_code,
         grand_total: Number(inv.grand_total),

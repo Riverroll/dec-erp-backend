@@ -10,6 +10,11 @@ import {
   CustomerProductCodeSearchController,
 } from './customer-product-code/customer-product-code.controller';
 import { CustomerProductCodeService } from './customer-product-code/customer-product-code.service';
+import {
+  SupplierProductCodeController,
+  SupplierProductCodeSearchController,
+} from './supplier-product-code/supplier-product-code.controller';
+import { SupplierProductCodeService } from './supplier-product-code/supplier-product-code.service';
 
 @Module({
   controllers: [
@@ -17,6 +22,8 @@ import { CustomerProductCodeService } from './customer-product-code/customer-pro
     SupplierController,
     CustomerProductCodeController,
     CustomerProductCodeSearchController,
+    SupplierProductCodeController,
+    SupplierProductCodeSearchController,
   ],
   providers: [
     CustomerService,
@@ -24,7 +31,8 @@ import { CustomerProductCodeService } from './customer-product-code/customer-pro
     SupplierService,
     SupplierRepository,
     CustomerProductCodeService,
+    SupplierProductCodeService,
   ],
-  exports: [CustomerService, SupplierService, CustomerProductCodeService],
+  exports: [CustomerService, SupplierService, CustomerProductCodeService, SupplierProductCodeService],
 })
 export class ContactModule {}

@@ -1,10 +1,11 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, Request,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, Request, Res, StreamableFile,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { GoodsReceiptService } from './goods-receipt.service';
 import { CreateGRDto } from './dto/create-gr.dto';
+import type { Response } from 'express';
 
 @ApiTags('Procurement - Goods Receipts')
 @ApiBearerAuth()
@@ -28,6 +29,19 @@ export class GoodsReceiptController {
     });
     const p = parseInt(page), l = parseInt(limit);
     return { data: result.data, meta: { total: result.total, page: p, limit: l, totalPages: Math.ceil(result.total / l) } };
+  }
+
+  @Get(':id/payment-voucher/pdf')
+  async getPaymentVoucherPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.service.generatePaymentVoucherPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
   }
 
   @Get(':id')

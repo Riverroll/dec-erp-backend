@@ -1,11 +1,12 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards, Request,
+  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, UseGuards, Request, Res, StreamableFile,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { PurchaseOrderService } from './purchase-order.service';
 import { CreatePODto } from './dto/create-po.dto';
 import { UpdatePOStatusDto } from './dto/update-po.dto';
+import type { Response } from 'express';
 
 @ApiTags('Procurement - Purchase Orders')
 @ApiBearerAuth()
@@ -29,6 +30,19 @@ export class PurchaseOrderController {
     });
     const p = parseInt(page), l = parseInt(limit);
     return { data: result.data, meta: { total: result.total, page: p, limit: l, totalPages: Math.ceil(result.total / l) } };
+  }
+
+  @Get(':id/pdf')
+  async getPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const { buffer, filename } = await this.service.generatePdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+    return new StreamableFile(buffer);
   }
 
   @Get(':id')
